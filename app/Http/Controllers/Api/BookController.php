@@ -3,9 +3,11 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use App\Models\Book;
+
 class BookController extends Controller
 {
     public function index(Request $request)
@@ -57,6 +59,7 @@ class BookController extends Controller
             'publisher' => 'nullable|max:255',
             'language' => 'nullable|max:50',
             'book_price' => 'nullable|numeric|min:0',
+            'total_copies' => 'required|numeric|min:1',
             'image' => 'required|image|mimes:jpeg,png,jpg,gif|max:5048'
         ]);
         
@@ -88,16 +91,31 @@ class BookController extends Controller
             'title' => 'sometimes|required|max:255',
             'author_id' => 'sometimes|required|exists:authors,id',
             'category_id' => 'sometimes|required|exists:categories,id',
-            'isbn' => 'nullable|unique:books,isbn,' . $book->id . '|max:13',
+            'isbn' => 'nullable|max:13|unique:books,isbn,' . $book->id,
             'description' => 'nullable',
             'publication_year' => 'nullable|integer|min:1000|max:' . (date('Y') + 1),
             'publisher' => 'nullable|max:255',
             'language' => 'nullable|max:50',
             'book_price' => 'nullable|numeric|min:0',
+            'total_copies' => 'required|numeric|min:1',
+            'image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:5048'
         ]);
-
+    
+        if ($request->hasFile('image')) {
+            // Delete the old image if it exists
+            if ($book->image) {
+                Storage::delete('public/' . $book->image);
+            }
+    
+            $image = $request->file('image');
+            $filename = time() . '.' . $image->getClientOriginalExtension();
+            $path = $image->storeAs('public/book_covers', $filename);
+            $validatedData['image'] = str_replace('public/', '', $path);
+        }
+    
         $book->update($validatedData);
-        return response()->json($book);
+    
+        return response()->json($book, Response::HTTP_OK);
     }
 
     public function getBooksByCategory(Request $request, $categoryId)
