@@ -12,6 +12,12 @@ class AuthorController extends Controller
     /**
      * Display a listing of the authors.
      */
+
+    public function allAuthor(){
+        $authors = Author::all();
+        return response()->json($authors);
+    }
+
     public function index(Request $request)
     {
         $query = Author::with('books');

@@ -12,6 +12,11 @@ class CategoryController extends Controller
     /**
      * Display a listing of the categories.
      */
+
+    public function allCategory(){
+        $categories = Category::all();
+        return response()->json($categories);
+    }
     public function index(Request $request)
     {
         $query = Category::with('books');
@@ -51,6 +56,7 @@ class CategoryController extends Controller
         $validatedData = $request->validate([
             'name' => 'required|unique:categories|max:255',
             'description' => 'nullable',
+            'status' => 'required',
         ]);
 
         $category = Category::create($validatedData);
@@ -73,6 +79,7 @@ class CategoryController extends Controller
         $validatedData = $request->validate([
             'name' => 'sometimes|required|unique:categories,name,' . $category->id . '|max:255',
             'description' => 'nullable',
+            'status' => 'required'
         ]);
 
         $category->update($validatedData);

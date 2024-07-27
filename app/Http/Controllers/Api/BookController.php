@@ -39,6 +39,7 @@ class BookController extends Controller
             'per_page' => $books->perPage(),
             'total' => $books->total(),
             'last_page' => $books->lastPage(),
+            'image_url' => asset('storage/'),
         ]);
     }
     /**
@@ -56,7 +57,15 @@ class BookController extends Controller
             'publisher' => 'nullable|max:255',
             'language' => 'nullable|max:50',
             'book_price' => 'nullable|numeric|min:0',
+            'image' => 'required|image|mimes:jpeg,png,jpg,gif|max:5048'
         ]);
+        
+        if ($request->hasFile('image')) {
+            $image = $request->file('image');
+            $filename = time() . '.' . $image->getClientOriginalExtension();
+            $path = $image->storeAs('public/book_covers', $filename);
+            $validatedData['image'] = str_replace('public/', '', $path);
+        }
 
         $book = Book::create($validatedData);
         return response()->json($book, Response::HTTP_CREATED);
@@ -90,6 +99,91 @@ class BookController extends Controller
         $book->update($validatedData);
         return response()->json($book);
     }
+
+    public function getBooksByCategory(Request $request, $categoryId)
+{
+    $page = $request->input('page', 1);
+    $rowsPerPage = $request->input('row', 10);
+    $search = $request->input('search', '');
+
+    $query = Book::where('category_id', $categoryId)
+                 ->with(['author', 'category']);
+
+    if (!empty($search)) {
+        $query->where(function ($q) use ($search) {
+            $q->where('title', 'LIKE', "%{$search}%")
+              ->orWhere('description', 'LIKE', "%{$search}%")
+              ->orWhereHas('author', function ($authorQuery) use ($search) {
+                  $authorQuery->where('name', 'LIKE', "%{$search}%");
+              });
+        });
+    }
+
+    $totalBooks = $query->count();
+    
+    $books = $query->orderBy('title')
+                   ->skip(($page - 1) * $rowsPerPage)
+                   ->take($rowsPerPage)
+                   ->get();
+
+    if ($books->isEmpty()) {
+        return response()->json(['message' => 'No books found in this category'], 200);
+    }
+
+    $totalPages = ceil($totalBooks / $rowsPerPage);
+
+    $response = [
+        'data' => $books,
+        'current_page' => $page,
+        'rows_per_page' => $rowsPerPage,
+        'total' => $totalBooks,
+        'total' => $totalPages
+    ];
+
+    return response()->json($response, 200);
+}
+public function getBooksByAuthor(Request $request, $authorId)
+{
+    $page = $request->input('page', 1);
+    $rowsPerPage = $request->input('row', 10);
+    $search = $request->input('search', '');
+
+    $query = Book::where('author_id', $authorId)
+                 ->with(['author', 'category']);
+
+    if (!empty($search)) {
+        $query->where(function ($q) use ($search) {
+            $q->where('title', 'LIKE', "%{$search}%")
+              ->orWhere('description', 'LIKE', "%{$search}%")
+              ->orWhereHas('author', function ($authorQuery) use ($search) {
+                  $authorQuery->where('name', 'LIKE', "%{$search}%");
+              });
+        });
+    }
+
+    $totalBooks = $query->count();
+    
+    $books = $query->orderBy('title')
+                   ->skip(($page - 1) * $rowsPerPage)
+                   ->take($rowsPerPage)
+                   ->get();
+
+    if ($books->isEmpty()) {
+        return response()->json(['message' => 'No books found in this category'], 200);
+    }
+
+    $totalPages = ceil($totalBooks / $rowsPerPage);
+
+    $response = [
+        'data' => $books,
+        'current_page' => $page,
+        'rows_per_page' => $rowsPerPage,
+        'total' => $totalBooks,
+        'total' => $totalPages
+    ];
+
+    return response()->json($response, 200);
+}
 
     /**
      * Remove the specified book from storage.

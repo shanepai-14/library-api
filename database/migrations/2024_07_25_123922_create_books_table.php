@@ -24,6 +24,7 @@ return new class extends Migration
             $table->integer('available_copies')->default(1);
             $table->string('language')->default('English');
             $table->decimal('book_price', 8, 2)->nullable();
+            $table->string('image')->unique()->nullable();
             $table->timestamps();
         });
     }
