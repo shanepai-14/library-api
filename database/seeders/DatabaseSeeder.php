@@ -37,27 +37,26 @@ class DatabaseSeeder extends Seeder
         ]);
 
         // Create Student User
-        User::create([
-            'id_number' => 'STU001',
-            'role' => 'student',
-            'first_name' => 'John',
-            'middle_name' => 'Doe',
-            'last_name' => 'Smith',
-            'course' => 'Computer Science',
-            'year_level' => '3rd Year',
-            'gender' => 'Male',
-            'profile_picture' => null,
-            'address' => '456 Student Ave, College Town',
-            'birthday' => '2000-05-15',
-            'contact_number' => '9876543210',
-            'position' => null,
-            'department' => 'School of Computing',
-            'email' => 'john.smith@student.example.com',
-            'email_verified_at' => now(),
-            'password' => Hash::make('12345678'),
-        ]);
+        // User::create([
+        //     'role' => 'student',
+        //     'first_name' => 'John',
+        //     'middle_name' => 'Doe',
+        //     'last_name' => 'Smith',
+        //     'course' => 'Computer Science',
+        //     'year_level' => '3rd Year',
+        //     'gender' => 'Male',
+        //     'profile_picture' => null,
+        //     'address' => '456 Student Ave, College Town',
+        //     'birthday' => '2000-05-15',
+        //     'contact_number' => '9876543210',
+        //     'position' => null,
+        //     'department' => 'School of Computing',
+        //     'email' => 'john.smith@student.example.com',
+        //     'email_verified_at' => now(),
+        //     'password' => Hash::make('12345678'),
+        // ]);
         
-
+        User::factory()->count(50)->create();
         Author::factory()->count(10)->create();
         Category::factory()->count(10)->create();
     }

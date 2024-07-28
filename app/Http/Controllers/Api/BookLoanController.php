@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\BookLoan;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Carbon\Carbon;
 
 class BookLoanController extends Controller
 {
@@ -17,7 +18,7 @@ class BookLoanController extends Controller
             $searchTerm = $request->search;
             $query->where(function ($q) use ($searchTerm) {
                 $q->whereHas('user', function ($q) use ($searchTerm) {
-                    $q->where('name', 'LIKE', "%{$searchTerm}%");
+                    $q->where('first_name', 'LIKE', "%{$searchTerm}%");
                 })->orWhereHas('book', function ($q) use ($searchTerm) {
                     $q->where('title', 'LIKE', "%{$searchTerm}%");
                 });
@@ -51,10 +52,9 @@ class BookLoanController extends Controller
         $validatedData = $request->validate([
             'user_id' => 'required|exists:users,id',
             'book_id' => 'required|exists:books,id',
-            'loan_date' => 'required|date',
             'due_date' => 'required|date|after:loan_date',
         ]);
-
+        $validatedData['loan_date'] = Carbon::now()->toDateString();
         $bookLoan = BookLoan::create($validatedData);
         return response()->json($bookLoan, Response::HTTP_CREATED);
     }
@@ -67,7 +67,10 @@ class BookLoanController extends Controller
     public function update(Request $request, BookLoan $bookLoan)
     {
         $validatedData = $request->validate([
-            'return_date' => 'required|date|after:loan_date',
+            'return_date' => 'nullable|date|after:loan_date',
+            'user_id' => 'required|exists:users,id',
+            'book_id' => 'required|exists:books,id',
+            'due_date' => 'required|date|after:loan_date',
         ]);
 
         $bookLoan->update($validatedData);
@@ -79,4 +82,31 @@ class BookLoanController extends Controller
         $bookLoan->delete();
         return response()->json(null, Response::HTTP_NO_CONTENT);
     }
+
+    public function fetchActiveLoans($book_id)
+{
+    try {
+        $activeLoans = BookLoan::where('book_id', $book_id)
+                               ->whereNull('actual_return_date')
+                               ->with(['user','book'])  // Assuming you want user details
+                               ->get();
+        if ($activeLoans->isEmpty()) {
+            return response()->json([
+                'message' => 'No active loans found for this book.',
+                'data' => []
+            ], Response::HTTP_OK);
+        }
+
+        return response()->json([
+            'message' => 'Active loans retrieved successfully.',
+            'data' => $activeLoans
+        ], Response::HTTP_OK);
+
+    } catch (\Exception $e) {
+        return response()->json([
+            'message' => 'An error occurred while fetching active loans.',
+            'error' => $e->getMessage()
+        ], Response::HTTP_INTERNAL_SERVER_ERROR);
+    }
+}
 }

@@ -23,11 +23,25 @@ class UserFactory extends Factory
      */
     public function definition(): array
     {
+        $courses = ['BSIT', 'BEED', 'BSED', 'THEO'];
+        $yearLevels = ['1st Year', '2nd Year', '3rd Year', '4th Year'];
         return [
-            'name' => fake()->name(),
-            'email' => fake()->unique()->safeEmail(),
+            'role' => 'student',
+            'first_name' => $this->faker->firstName,
+            'middle_name' => $this->faker->firstName,
+            'last_name' => $this->faker->lastName,
+            'course' => $this->faker->randomElement($courses),
+            'year_level' => $this->faker->randomElement($yearLevels),
+            'gender' => $this->faker->randomElement(['Male', 'Female']),
+            'profile_picture' => null,
+            'address' => $this->faker->address,
+            'birthday' => $this->faker->date('Y-m-d', '2000-05-15'),
+            'contact_number' => $this->faker->phoneNumber,
+            'position' => null,
+            'department' => 'School of Computing',
+            'email' => $this->faker->unique()->safeEmail,
             'email_verified_at' => now(),
-            'password' => static::$password ??= Hash::make('password'),
+            'password' => Hash::make('12345678'), // or bcrypt('12345678')
             'remember_token' => Str::random(10),
         ];
     }

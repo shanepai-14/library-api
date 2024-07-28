@@ -15,7 +15,8 @@ Route::post('/login', [UserController::class, 'login'])->name('login');
 Route::group(['middleware' => ['auth:sanctum']] ,function () {
 
     Route::post('/logout', [UserController::class, 'logout']);
-    Route::get('/user', [UserController::class, 'user']);
+    Route::get('/users', [UserController::class, 'index']);
+    Route::apiResource('user', UserController::class);
     Route::apiResource('books', BookController::class);
     Route::apiResource('authors', AuthorController::class);
     Route::apiResource('attendances', AttendanceController::class); 
@@ -25,5 +26,6 @@ Route::group(['middleware' => ['auth:sanctum']] ,function () {
     Route::get('/books/author/{authorId}', [BookController::class, 'getBooksByAuthor']);
     Route::get('/author/all', [AuthorController::class, 'allAuthor']);
     Route::get('/category/all', [CategoryController::class, 'allCategory']);
+    Route::get('/books/{book_id}/active-loans', [BookLoanController::class, 'fetchActiveLoans']);
 
 });

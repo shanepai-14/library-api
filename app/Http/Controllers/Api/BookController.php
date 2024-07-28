@@ -16,7 +16,7 @@ class BookController extends Controller
 
         // Search functionality
         if ($request->has('search')) {
-            $searchTerm = $request->search;
+            $searchTerm = $request->search == "all" ? "" : $request->search;
             $query->where(function ($q) use ($searchTerm) {
                 $q->where('title', 'LIKE', "%{$searchTerm}%")
                   ->orWhere('isbn', 'LIKE', "%{$searchTerm}%")

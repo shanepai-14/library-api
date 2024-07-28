@@ -100,13 +100,15 @@ class UserController extends Controller
      */
     public function index(Request $request)
     {
-        $query = User::query();
+        $query = User::query()->where('role','student');
 
         if ($request->has('search')) {
-            $searchTerm = $request->search;
+            $searchTerm = $request->search == "all" ? "" : $request->search;
             $query->where(function ($q) use ($searchTerm) {
-                $q->where('name', 'LIKE', "%{$searchTerm}%")
-                  ->orWhere('email', 'LIKE', "%{$searchTerm}%");
+                $q->where('first_name', 'LIKE', "%{$searchTerm}%")
+                  ->orWhere('last_name', 'LIKE', "%{$searchTerm}%")
+                  ->orWhere('email', 'LIKE', "%{$searchTerm}%")
+                  ->orWhere('id_number', 'LIKE', "%{$searchTerm}%");
             });
         }
 
