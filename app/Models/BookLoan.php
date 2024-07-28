@@ -33,6 +33,7 @@ class BookLoan extends Model
         return $this->belongsTo(Book::class);
     }
 
+    
     public function scopeOverdue($query)
     {
         return $query->whereNull('return_date')->where('due_date', '<', now());

@@ -27,5 +27,7 @@ Route::group(['middleware' => ['auth:sanctum']] ,function () {
     Route::get('/author/all', [AuthorController::class, 'allAuthor']);
     Route::get('/category/all', [CategoryController::class, 'allCategory']);
     Route::get('/books/{book_id}/active-loans', [BookLoanController::class, 'fetchActiveLoans']);
+    Route::get('/book-loans/{id}/return', [BookLoanController::class, 'checkEligibleForReturn']);
+    Route::post('/book-loans/{bookLoanId}/return', [BookLoanController::class, 'returnBook']);
 
 });

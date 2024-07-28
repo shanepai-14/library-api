@@ -22,4 +22,8 @@ class Book extends Model
     {
         return $this->belongsTo(Category::class);
     }
+    public function bookLoans()
+{
+    return $this->hasMany(BookLoan::class);
+}
 }

@@ -7,12 +7,23 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use App\Models\Book;
+use App\Models\BookLoan;
 
 class BookController extends Controller
 {
     public function index(Request $request)
     {
-        $query = Book::with(['author', 'category']);
+        $query = Book::with(['author', 'category'])
+        ->leftJoinSub(
+            BookLoan::selectRaw('book_id, COUNT(*) as active_loans')
+                ->whereNull('actual_return_date')
+                ->groupBy('book_id'),
+            'active_loans',
+            'books.id',
+            '=',
+            'active_loans.book_id'
+        )
+        ->selectRaw('books.*, COALESCE(books.total_copies - IFNULL(active_loans.active_loans, 0), books.total_copies) as available_copies');
 
         // Search functionality
         if ($request->has('search')) {
