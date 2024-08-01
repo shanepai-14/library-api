@@ -162,4 +162,31 @@ class UserController extends Controller
         $user->delete();
         return response()->json(null, 204);
     }
+    public function checkStudent(Request $request)
+    {
+        $request->validate([
+            'id_number' => 'required|string',
+        ]);
+
+        $student = User::where('id_number', $request->id_number)
+                       ->where('role', 'student')
+                       ->first();
+
+        if ($student) {
+            return response()->json([
+                'found' => true,
+                'student' => [
+                    'id' => $student->id,
+                    'first_name' => $student->first_name,
+                    'id_number' => $student->id_number,
+                    // Add any other fields you want to return
+                ]
+            ]);
+        } else {
+            return response()->json([
+                'found' => false,
+                'message' => 'Student not found'
+            ], 404);
+        }
+    }
 }

@@ -8,11 +8,15 @@ use Illuminate\Database\Eloquent\Model;
 class Attendance extends Model
 {
     use HasFactory;
+
+    
+    protected $table = 'attendance';
     protected $fillable = [
         'user_id',
         'date',
         'check_in',
         'check_out',
+        'notes'
     ];
     protected $casts = [
         'date' => 'date',
@@ -26,6 +30,7 @@ class Attendance extends Model
     }
     public function scopeDateBetween($query, $startDate, $endDate)
     {
+        
         return $query->whereBetween('date', [$startDate, $endDate]);
     }
     public function scopeForUser($query, $userId)

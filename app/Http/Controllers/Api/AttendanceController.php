@@ -3,9 +3,12 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\User;
 use App\Models\Attendance;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+
+use Carbon\Carbon;
 
 class AttendanceController extends Controller
 {
@@ -95,4 +98,50 @@ class AttendanceController extends Controller
         $attendance->delete();
         return response()->json(null, Response::HTTP_NO_CONTENT);
     }
+    public function checkInOut(Request $request)
+    {
+        $request->validate([
+            'user_id' => 'required|exists:users,id',
+            'notes' => 'required|string',
+        ]);
+
+        $user = User::findOrFail($request->user_id);
+        $today = Carbon::today();
+
+        $attendance = Attendance::where('user_id', $user->id)
+            ->where('date', $today)
+            ->first();
+
+        if (!$attendance) {
+            // Check-in
+            $attendance = Attendance::create([
+                'user_id' => $user->id,
+                'date' => $today,
+                'check_in' => Carbon::now(),
+                'notes' => $request->notes,
+            ]);
+
+            return response()->json([
+                'message' => 'Check-in successful',
+                'attendance' => $attendance
+            ], 201);
+        } elseif ($attendance->check_out === null) {
+            // Check-out
+            $attendance->update([
+                'check_out' => Carbon::now(),
+                'notes' => $request->notes ? $attendance->notes . "\n" . $request->notes : $attendance->notes,
+            ]);
+
+            return response()->json([
+                'message' => 'Check-out successful',
+                'attendance' => $attendance
+            ]);
+        } else {
+            return response()->json([
+                'message' => 'You have already checked in and out for today',
+                'attendance' => $attendance
+            ], 400);
+        }
+    }
+    
 }
