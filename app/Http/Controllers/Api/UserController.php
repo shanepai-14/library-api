@@ -4,11 +4,12 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Models\Attendance;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
-
+use Carbon\Carbon;
 class UserController extends Controller
 {
     /**
@@ -162,31 +163,95 @@ class UserController extends Controller
         $user->delete();
         return response()->json(null, 204);
     }
+    // public function checkStudent(Request $request)
+    // {
+    //     $request->validate([
+    //         'id_number' => 'required|string',
+    //     ]);
+
+    //     $student = User::where('id_number', $request->id_number)
+    //                    ->where('role', 'student')
+    //                    ->first();
+
+    //     if ($student) {
+    //         return response()->json([
+    //             'found' => true,
+    //             'student' => [
+    //                 'id' => $student->id,
+    //                 'first_name' => $student->first_name,
+    //                 'id_number' => $student->id_number,
+    //                 // Add any other fields you want to return
+    //             ]
+    //         ]);
+    //     } else {
+    //         return response()->json([
+    //             'found' => false,
+    //             'message' => 'Student not found'
+    //         ], 404);
+    //     }
+    // }
+
     public function checkStudent(Request $request)
-    {
-        $request->validate([
-            'id_number' => 'required|string',
+{
+    $request->validate([
+        'id_number' => 'required|string',
+    ]);
+
+    $student = User::where('id_number', $request->id_number)
+                   ->where('role', 'student')
+                   ->first();
+
+    if (!$student) {
+        return response()->json([
+            'found' => false,
+            'message' => 'Student not found'
+        ], 404);
+    }
+
+    $today = Carbon::today();
+    $attendance = Attendance::where('user_id', $student->id)
+        ->where('date', $today)
+        ->first();
+
+    if (!$attendance) {
+        // No check-in or check-out for today
+        return response()->json([
+            'found' => true,
+            'message' => 'No check-in or check-out for today',
+            'student' => [
+                'id' => $student->id,
+                'first_name' => $student->first_name,
+                'id_number' => $student->id_number,
+            ]
+        ]);
+    } elseif ($attendance->check_out === null) {
+        // Check-out the user
+        $attendance->update([
+            'check_out' => Carbon::now(),
         ]);
 
-        $student = User::where('id_number', $request->id_number)
-                       ->where('role', 'student')
-                       ->first();
-
-        if ($student) {
-            return response()->json([
-                'found' => true,
-                'student' => [
-                    'id' => $student->id,
-                    'first_name' => $student->first_name,
-                    'id_number' => $student->id_number,
-                    // Add any other fields you want to return
-                ]
-            ]);
-        } else {
-            return response()->json([
-                'found' => false,
-                'message' => 'Student not found'
-            ], 404);
-        }
+        return response()->json([
+            'found' => true,
+            'message' => 'Check-out successful',
+            'student' => [
+                'id' => $student->id,
+                'first_name' => $student->first_name,
+                'id_number' => $student->id_number,
+            ],
+            'attendance' => $attendance
+        ]);
+    } else {
+        // Already checked in and out for today
+        return response()->json([
+            'found' => true,
+            'message' => 'You have already checked in and out for today',
+            'attendance' => $attendance,
+            'student' => [
+                'id' => $student->id,
+                'first_name' => $student->first_name,
+                'id_number' => $student->id_number,
+            ]
+        ]);
     }
+}
 }

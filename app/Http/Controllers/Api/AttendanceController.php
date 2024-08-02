@@ -17,7 +17,7 @@ class AttendanceController extends Controller
      */
     public function index(Request $request)
     {
-        $query = Attendance::with('user');
+        $query = Attendance::with('user')->orderBy('created_at', 'desc');
 
         // Search functionality
         if ($request->has('search')) {
@@ -25,7 +25,7 @@ class AttendanceController extends Controller
             $query->where(function ($q) use ($searchTerm) {
                 $q->whereDate('date', 'LIKE', "%{$searchTerm}%")
                   ->orWhereHas('user', function ($q) use ($searchTerm) {
-                      $q->where('name', 'LIKE', "%{$searchTerm}%");
+                      $q->where('first_name', 'LIKE', "%{$searchTerm}%");
                   });
             });
         }
