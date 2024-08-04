@@ -17,6 +17,10 @@ class BookLoanController extends Controller
     public function index(Request $request)
     {
         $query = BookLoan::with(['user', 'book']);
+        
+        if($request->has('user_id')){
+            $query->where('user_id', $request->user_id);
+        }
 
         if ($request->has('search')) {
             $searchTerm = $request->search;
