@@ -11,7 +11,8 @@ use App\Http\Controllers\Api\UserController;
 
 Route::post('/register', [UserController::class, 'register']);
 Route::post('/login', [UserController::class, 'login'])->name('login');
-
+Route::post('/check-student', [UserController::class, 'checkStudent']);
+Route::post('/attendance/check', [AttendanceController::class, 'checkInOut']);
 Route::group(['middleware' => ['auth:sanctum']] ,function () {
 
     Route::post('/logout', [UserController::class, 'logout']);
@@ -30,6 +31,4 @@ Route::group(['middleware' => ['auth:sanctum']] ,function () {
     Route::get('/book-loans/{id}/return', [BookLoanController::class, 'checkEligibleForReturn']);
     Route::post('/book-loans/{bookLoanId}/return', [BookLoanController::class, 'returnBook']);
 
-    Route::post('/attendance/check', [AttendanceController::class, 'checkInOut']);
-    Route::post('/check-student', [UserController::class, 'checkStudent']);
 });
