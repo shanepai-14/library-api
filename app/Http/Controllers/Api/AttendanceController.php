@@ -143,45 +143,52 @@ class AttendanceController extends Controller
     //         ], 400);
     //     }
     // }
-    public function checkInOut(Request $request)
-{
-    $request->validate([
-        'user_id' => 'required|exists:users,id',
-        'notes' => 'required|string',
-    ]);
-
-    $user = User::findOrFail($request->user_id);
-    $now = Carbon::now();
-
-    $lastAttendance = Attendance::where('user_id', $user->id)
-        ->whereDate('date', $now->toDateString())
-        ->latest('check_in')
-        ->first();
-
-    if (!$lastAttendance || $lastAttendance->check_out !== null) {
-        // Check-in: Create a new attendance record
-        $attendance = Attendance::create([
-            'user_id' => $user->id,
-            'date' => $now->toDateString(),
-            'check_in' => $now,
-            'notes' => $request->notes,
+        public function checkInOut(Request $request)
+    {
+        $request->validate([
+            'user_id' => 'required|exists:users,id',
+            'notes' => 'required|string',
         ]);
 
-        return response()->json([
-            'message' => 'Check-in successful',
-            'attendance' => $attendance
-        ], 201);
-    } else {
-        // Check-out: Update the last attendance record
-        $lastAttendance->update([
-            'check_out' => $now,
-            'notes' => $lastAttendance->notes . "\n" . $request->notes,
-        ]);
+        $user = User::findOrFail($request->user_id);
 
-        return response()->json([
-            'message' => 'Check-out successful',
-            'attendance' => $lastAttendance
-        ]);
+        if (!$user) {
+            return response()->json([
+                'found' => false,
+                'message' => 'Student not found'
+            ], 404);
+        }
+
+        $now = Carbon::now();
+
+        $lastAttendance = Attendance::where('user_id', $user->id)
+            ->whereDate('date', $now->toDateString())
+            ->latest('check_in')
+            ->first();
+
+        if (!$lastAttendance || $lastAttendance->check_out !== null) {
+            // Check-in: Create a new attendance record
+            $attendance = Attendance::create([
+                'user_id' => $user->id,
+                'date' => $now->toDateString(),
+                'check_in' => $now,
+                'notes' => $request->notes,
+            ]);
+
+            return response()->json([
+                'message' => 'Check-in successful',
+                'attendance' => $attendance
+            ], 201);
+        } else {
+            // Check-out: Update the last attendance record
+            $lastAttendance->update([
+                'check_out' => $now,
+            ]);
+
+            return response()->json([
+                'message' => 'Check-out successful',
+                'attendance' => $lastAttendance
+            ]);
+        }
     }
-}
 }

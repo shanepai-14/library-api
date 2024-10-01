@@ -242,7 +242,71 @@ class UserController extends Controller
     //     }
     // }
 
-    public function checkStudent(Request $request)
+//     public function checkStudent(Request $request)
+// {
+//     $request->validate([
+//         'id_number' => 'required|string',
+//     ]);
+
+//     $student = User::where('id_number', $request->id_number)
+//                    ->where('role', 'student')
+//                    ->first();
+
+//     if (!$student) {
+//         return response()->json([
+//             'found' => false,
+//             'message' => 'Student not found'
+//         ], 404);
+//     }
+
+//     $today = Carbon::today();
+//     $attendance = Attendance::where('user_id', $student->id)
+//         ->where('date', $today)
+//         ->first();
+
+//     if (!$attendance) {
+//         // No check-in or check-out for today
+//         return response()->json([
+//             'found' => true,
+//             'message' => 'No check-in or check-out for today',
+//             'student' => [
+//                 'id' => $student->id,
+//                 'first_name' => $student->first_name,
+//                 'id_number' => $student->id_number,
+//             ]
+//         ]);
+//     } elseif ($attendance->check_out === null) {
+//         // Check-out the user
+//         $attendance->update([
+//             'check_out' => Carbon::now(),
+//         ]);
+
+//         return response()->json([
+//             'found' => true,
+//             'message' => 'Check-out successful',
+//             'student' => [
+//                 'id' => $student->id,
+//                 'first_name' => $student->first_name,
+//                 'id_number' => $student->id_number,
+//             ],
+//             'attendance' => $attendance
+//         ]);
+//     } else {
+//         // Already checked in and out for today
+//         return response()->json([
+//             'found' => true,
+//             'message' => 'You have already checked in and out for today',
+//             'attendance' => $attendance,
+//             'student' => [
+//                 'id' => $student->id,
+//                 'first_name' => $student->first_name,
+//                 'id_number' => $student->id_number,
+//             ]
+//         ]);
+//     }
+// }
+
+public function checkStudent(Request $request)
 {
     $request->validate([
         'id_number' => 'required|string',
@@ -259,49 +323,49 @@ class UserController extends Controller
         ], 404);
     }
 
-    $today = Carbon::today();
-    $attendance = Attendance::where('user_id', $student->id)
-        ->where('date', $today)
+    $now = Carbon::now();
+    $latestAttendance = Attendance::where('user_id', $student->id)
+        ->whereDate('date', $now->toDateString())
+        ->latest('check_in')
         ->first();
 
-    if (!$attendance) {
-        // No check-in or check-out for today
+    $studentInfo = [
+        'id' => $student->id,
+        'first_name' => $student->first_name,
+        'id_number' => $student->id_number,
+    ];
+
+    if (!$latestAttendance) {
+        // No check-in for today
         return response()->json([
             'found' => true,
-            'message' => 'No check-in or check-out for today',
-            'student' => [
-                'id' => $student->id,
-                'first_name' => $student->first_name,
-                'id_number' => $student->id_number,
-            ]
+            'message' => 'No check-in for today',
+            'student' => $studentInfo,
+            'status' => 'ready_for_checkin'
         ]);
-    } elseif ($attendance->check_out === null) {
-        // Check-out the user
-        $attendance->update([
-            'check_out' => Carbon::now(),
-        ]);
+
+    } elseif ($latestAttendance->check_out === null) {
+        // Last entry is a check-in, ready for check-out
+        $latestAttendance->update([
+                        'check_out' => Carbon::now(),
+                    ]);
 
         return response()->json([
             'found' => true,
             'message' => 'Check-out successful',
-            'student' => [
-                'id' => $student->id,
-                'first_name' => $student->first_name,
-                'id_number' => $student->id_number,
-            ],
-            'attendance' => $attendance
+            'student' => $studentInfo,
+            'attendance' => $latestAttendance,
+            'status' => 'ready_for_checkout'
         ]);
+
     } else {
-        // Already checked in and out for today
+        // Last entry is a check-out, ready for new check-in
         return response()->json([
             'found' => true,
-            'message' => 'You have already checked in and out for today',
-            'attendance' => $attendance,
-            'student' => [
-                'id' => $student->id,
-                'first_name' => $student->first_name,
-                'id_number' => $student->id_number,
-            ]
+            'message' => 'Ready for new check-in',
+            'student' => $studentInfo,
+            'last_attendance' => $latestAttendance,
+            'status' => 'ready_for_checkin'
         ]);
     }
 }
