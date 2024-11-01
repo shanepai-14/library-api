@@ -15,6 +15,179 @@ class AttendanceController extends Controller
     /**
      * Display a listing of the attendances.
      */
+
+
+     public function getAnalytics(Request $request)
+{
+    $year = $request->input('year', 2024);
+    $yearLevel = $request->input('year_level', 'all');
+    
+    // Initialize the months array with all months
+    $months = [];
+    for ($month = 1; $month <= 12; $month++) {
+        $months[$month] = [
+            'month' => $month,
+            'BSIT' => 0,
+            'BEED' => 0,
+            'BSED-ENG' => 0,
+            'BSED-MATH' => 0,
+            'THEO' => 0,
+            'SHS'=> 0,
+        ];
+    }
+
+    $query = Attendance::with('user')
+    ->whereYear('date', $year)
+    ->join('users', 'attendance.user_id', '=', 'users.id');
+
+// Add year level filter if not 'all'
+        if ($yearLevel !== 'all') {
+            $query->where('users.year_level', $yearLevel);
+        }
+
+// Get attendance data
+$attendanceData = $query
+    ->selectRaw('
+        MONTH(attendance.date) as month, 
+        users.course, 
+        COUNT(DISTINCT CONCAT(attendance.date, attendance.user_id)) as count
+    ')
+    ->groupBy('month', 'users.course')
+    ->get();
+
+
+    // Fill in the actual counts
+    foreach ($attendanceData as $record) {
+        if (isset($months[$record->month][$record->course])) {
+            $months[$record->month][$record->course] = $record->count;
+        }
+    }
+
+    // Convert to indexed array and sort by month
+    $result = array_values($months);
+
+    return response()->json($result);
+}
+public function getDailyAnalytics()
+{
+    $today = now()->format('Y-m-d');
+
+    $dailyData = Attendance::with('user')
+        ->whereDate('date', $today)
+        ->join('users', 'attendance.user_id', '=', 'users.id')
+        ->selectRaw('
+            users.course, 
+            COUNT(DISTINCT attendance.user_id) as count
+        ')
+        ->groupBy('users.course')
+        ->get()
+        ->pluck('count', 'course')
+        ->toArray();
+
+
+    return response()->json([
+        'date' => $today,
+        'BSIT' => $dailyData['BSIT'] ?? 0,
+        'BEED' => $dailyData['BEED'] ?? 0,
+        'BSED-ENG' => $dailyData['BSED-ENG'] ?? 0,
+        'BSED-MATH' => $dailyData['BSED-MATH'] ?? 0,
+        'THEO' => $dailyData['THEO'] ?? 0,
+        'SHS' => $dailyData['SHS'] ?? 0
+    ]);
+}
+
+public function getMonthlyAnalytics(Request $request)
+{
+    $year = $request->input('year', now()->year);
+    $month = $request->input('month', now()->month);
+    
+    $startDate = Carbon::create($year, $month, 1);
+    $endDate = $startDate->copy()->endOfMonth();
+    $daysInMonth = $endDate->day;
+
+    // Initialize all days
+    $formattedData = [];
+    for ($day = 1; $day <= $daysInMonth; $day++) {
+        $formattedData[$day] = [
+            'day' => $day,
+            'BSIT' => 0,
+            'BEED' => 0,
+            'BSED-ENG' => 0,
+            'BSED-MATH' => 0,
+            'THEO' => 0,
+            'SHS'=> 0,
+        ];
+    }
+
+    // Get attendance data
+    $attendanceData = Attendance::with('user')
+        ->whereYear('date', $year)
+        ->whereMonth('date', $month)
+        ->join('users', 'attendance.user_id', '=', 'users.id')
+        ->selectRaw('DAY(attendance.date) as day, users.course, COUNT(DISTINCT attendance.user_id) as count')
+        ->groupBy('day', 'users.course')
+        ->get();
+
+    // Fill in the actual data
+    foreach ($attendanceData as $record) {
+        if (isset($formattedData[$record->day])) {
+            $formattedData[$record->day][$record->course] = $record->count;
+        }
+    }
+
+    return response()->json(array_values($formattedData));
+}
+
+public function getWeeklyAnalytics(Request $request)
+{
+    $year = $request->input('year', now()->year);
+    $month = $request->input('month', now()->month);
+
+    $startDate = Carbon::create($year, $month, 1);
+    $endDate = $startDate->copy()->endOfMonth();
+
+    // Initialize weeks
+    $formattedData = [
+        ['week' => 'Week 1'],
+        ['week' => 'Week 2'],
+        ['week' => 'Week 3'],
+        ['week' => 'Week 4']
+    ];
+
+    // Initialize course counts for each week
+    foreach ($formattedData as &$week) {
+        $week['BSIT'] = 0;
+        $week['BEED'] = 0;
+        $week['BSED-ENG'] = 0;
+        $week['BSED-MATH'] = 0;
+        $week['THEO'] = 0;
+        $week['SHS'] = 0;
+
+    }
+
+    // Get attendance data
+    $attendanceData = Attendance::with('user')
+        ->whereYear('date', $year)
+        ->whereMonth('date', $month)
+        ->join('users', 'attendance.user_id', '=', 'users.id')
+        ->selectRaw('
+            FLOOR((DAY(attendance.date) - 1) / 7) as week_number,
+            users.course,
+            COUNT(DISTINCT attendance.user_id) as count
+        ')
+        ->groupBy('week_number', 'users.course')
+        ->get();
+
+    // Fill in the actual data
+    foreach ($attendanceData as $record) {
+        if (isset($formattedData[$record->week_number])) {
+            $formattedData[$record->week_number][$record->course] = $record->count;
+        }
+    }
+
+    return response()->json($formattedData);
+}
+
     public function index(Request $request)
     {
         $query = Attendance::with('user')->orderBy('created_at', 'desc');
@@ -98,6 +271,9 @@ class AttendanceController extends Controller
         $attendance->delete();
         return response()->json(null, Response::HTTP_NO_CONTENT);
     }
+
+
+
     // public function checkInOut(Request $request)
     // {
     //     $request->validate([
@@ -191,4 +367,6 @@ class AttendanceController extends Controller
             ]);
         }
     }
+
+    
 }

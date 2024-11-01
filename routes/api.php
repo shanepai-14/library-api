@@ -24,6 +24,15 @@ Route::group(['middleware' => ['auth:sanctum']] ,function () {
     Route::apiResource('books', BookController::class);
     Route::apiResource('authors', AuthorController::class);
     Route::apiResource('attendances', AttendanceController::class); 
+
+    Route::get('/attendance/analytics', [AttendanceController::class, 'getAnalytics']);
+
+    Route::prefix('attendance/analytics')->group(function () {
+        Route::get('/daily', [AttendanceController::class, 'getDailyAnalytics']);
+        Route::get('/weekly', [AttendanceController::class, 'getWeeklyAnalytics']);
+        Route::get('/monthly', [AttendanceController::class, 'getMonthlyAnalytics']);
+    });
+
     Route::apiResource('book-loans', BookLoanController::class);
     Route::apiResource('categories', CategoryController::class);
     Route::apiResource('feature-posts', FeaturePostController::class);
