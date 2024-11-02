@@ -164,7 +164,7 @@ public function getWeeklyAnalytics(Request $request)
         $week['SHS'] = 0;
 
     }
-
+   
     // Get attendance data
     $attendanceData = Attendance::with('user')
         ->whereYear('date', $year)

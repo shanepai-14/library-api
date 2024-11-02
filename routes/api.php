@@ -20,6 +20,7 @@ Route::group(['middleware' => ['auth:sanctum']] ,function () {
 
     Route::post('/logout', [UserController::class, 'logout']);
     Route::get('/users', [UserController::class, 'index']);
+    Route::post('/user_update/{user}', [UserController::class, 'update']);
     Route::apiResource('user', UserController::class);
     Route::apiResource('books', BookController::class);
     Route::apiResource('authors', AuthorController::class);

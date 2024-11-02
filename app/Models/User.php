@@ -18,9 +18,21 @@ class User extends Authenticatable
      * @var array<int, string>
      */
     protected $fillable = [
-       'id_number', 'role', 'first_name', 'middle_name', 'last_name',
-        'course', 'year_level', 'gender', 'profile_picture', 'address',
-        'birthday', 'contact_number', 'position', 'department', 'email',
+        'id_number',
+        'role',
+        'first_name',
+        'middle_name',
+        'last_name',
+        'course',
+        'year_level',
+        'gender',
+        'profile_picture',
+        'address',
+        'birthday',
+        'contact_number',
+        'position',
+        'department',
+        'email',
         'password'
     ];
 
@@ -46,6 +58,9 @@ class User extends Authenticatable
             'password' => 'hashed',
         ];
     }
+
+
+
     protected static function boot()
     {
         parent::boot();
@@ -58,23 +73,25 @@ class User extends Authenticatable
     private static function generateUniqueId()
     {
         $id_number = self::generateRandomNumberString(8); // Generate a random numeric string
-    
+
         // Check if the id_number already exists
         while (self::where('id_number', $id_number)->exists()) {
             $id_number = self::generateRandomNumberString(8); // Generate again if exists
         }
-    
+
         return $id_number;
     }
     private static function generateRandomNumberString($length)
-{
-    $digits = '0123456789';
-    $randomString = '';
+    {
+        $digits = '0123456789';
+        $randomString = '';
 
-    for ($i = 0; $i < $length; $i++) {
-        $randomString .= $digits[rand(0, strlen($digits) - 1)];
+        for ($i = 0; $i < $length; $i++) {
+            $randomString .= $digits[rand(0, strlen($digits) - 1)];
+        }
+
+        return $randomString;
     }
 
-    return $randomString;
-}
+    
 }

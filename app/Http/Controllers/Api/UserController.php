@@ -53,52 +53,72 @@ class UserController extends Controller
     // }
 
     public function register(Request $request)
-{
-    $request->validate([
-        'email' => 'required|string|email|max:255|unique:users',
-        'password' => 'required|string|min:8|confirmed',
-        'password_confirmation' => 'required|string|min:8',
-        'first_name' => 'required|string',
-        'middle_name' => 'nullable|string',
-        'last_name' => 'required|string',
-        'course' => 'required|string',
-        'year_level' => 'required|string',
-        'gender' => 'required|string',
-        'contact_number' => 'required|string',
-        'profile_picture' => 'required|image|mimes:jpeg,png,jpg,gif|max:2048',
-        'role' => 'nullable|string',
-    ]);
-
-    $profilePicturePath = null;
-    if ($request->hasFile('profile_picture')) {
-        $image = $request->file('profile_picture');
-        $filename = time() . '.' . $image->getClientOriginalExtension();
-        $path = $image->storeAs('public/profile_pictures', $filename);
-        $profilePicturePath = str_replace('public/', '', $path);
+    {
+        try {
+            $request->validate([
+                'email' => 'required|string|email|max:255|unique:users',
+                'password' => 'required|string|min:8|confirmed',
+                'password_confirmation' => 'required|string|min:8',
+                'first_name' => 'required|string',
+                'middle_name' => 'nullable|string',
+                'last_name' => 'required|string',
+                'course' => 'required|string',
+                'year_level' => 'required|string',
+                'gender' => 'required|string',
+                'contact_number' => 'required|string',
+                'profile_picture' => 'required|image|mimes:jpeg,png,jpg,gif|max:2048',
+                'role' => 'nullable|string',
+                'birthday' => 'required|date',
+            ], [
+                'email.unique' => 'This email address has already been taken',
+                'password.confirmed' => 'Password confirmation does not match',
+                'profile_picture.required' => 'Profile picture is required',
+                // Add any other custom messages you want
+            ]);
+    
+            $profilePicturePath = null;
+            if ($request->hasFile('profile_picture')) {
+                $image = $request->file('profile_picture');
+                $filename = time() . '.' . $image->getClientOriginalExtension();
+                $path = $image->storeAs('public/profile_pictures', $filename);
+                $profilePicturePath = str_replace('public/', '', $path);
+            }
+    
+            $user = User::create([
+                'role' => $request->role ?? 'student',
+                'first_name' => $request->first_name,
+                'middle_name' => $request->middle_name,
+                'last_name' => $request->last_name,
+                'course' => $request->course,
+                'year_level' => $request->year_level,
+                'gender' => $request->gender,
+                'profile_picture' => $profilePicturePath,
+                'email' => $request->email,
+                'contact_number' => $request->contact_number,
+                'password' => Hash::make($request->password),
+                'birthday' => $request->birthday,
+            ]);
+    
+            $token = $user->createToken('auth_token')->plainTextToken;
+    
+            return response()->json([
+                'user' => $user,
+                'token' => $token,
+                'token_type' => 'Bearer',
+            ], 201);
+    
+        } catch (ValidationException $e) {
+            return response()->json([
+                'message' => 'Validation failed',
+                'errors' => $e->errors(),
+            ], 422);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'An error occurred during registration',
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
-
-    $user = User::create([
-        'role' => $request->role ?? 'student', // Default role to 'student' if not provided
-        'first_name' => $request->first_name,
-        'middle_name' => $request->middle_name,
-        'last_name' => $request->last_name,
-        'course' => $request->course,
-        'year_level' => $request->year_level,
-        'gender' => $request->gender,
-        'profile_picture' => $profilePicturePath,
-        'email' => $request->email,
-        'contact_number' => $request->contact_number,
-        'password' => Hash::make($request->password),  
-    ]);
-
-    $token = $user->createToken('auth_token')->plainTextToken;
-
-    return response()->json([
-        'user' => $user,
-        'token' => $token,
-        'token_type' => 'Bearer',
-    ], 201);
-}
 
     /**
      * Login user and create token.
@@ -188,22 +208,61 @@ class UserController extends Controller
      */
     public function update(Request $request, User $user)
     {
-        $validatedData = $request->validate([
-            'first_name' => 'sometimes|required|string|max:255',
-            'last_name' => 'sometimes|required|string|max:255',
-            'middle_name' => 'sometimes|required|string|max:255',
-            'address' => 'sometimes|required|string|max:255',
-            'contact_number' => 'sometimes|required|string|max:255',
-            'password' => 'sometimes|required|string|min:8|confirmed',
-        ]);
+        try {
+            $validatedData = $request->validate([
+                'first_name' => 'sometimes|required|string|max:255',
+                'last_name' => 'sometimes|required|string|max:255',
+                'middle_name' => 'nullable|string|max:255',
+                'contact_number' => 'sometimes|required|string|max:255',
+                'password' => 'sometimes|required|string|min:8|confirmed',
+                'profile_picture' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
+             
+            ]);
+    
+            // Handle profile picture upload
+            if ($request->hasFile('profile_picture')) {
+                // Delete old profile picture if it exists
+                if ($user->profile_picture) {
+                    $oldPath = storage_path('app/public/' . $user->profile_picture);
+                    if (file_exists($oldPath)) {
+                        unlink($oldPath);
+                    }
+                }
+    
+                // Store new profile picture
+                $image = $request->file('profile_picture');
+                $filename = time() . '.' . $image->getClientOriginalExtension();
+                $path = $image->storeAs('public/profile_pictures', $filename);
+                $validatedData['profile_picture'] = str_replace('public/', '', $path);
+            }
+    
+            // Handle password update
+            if (isset($validatedData['password'])) {
+                $validatedData['password'] = Hash::make($validatedData['password']);
+            }
+    
+            // Update user
+            $user->update($validatedData);
 
-        if (isset($validatedData['password'])) {
-            $validatedData['password'] = Hash::make($validatedData['password']);
+            $user = $user->fresh();
+    
+            // Return response with updated user data
+            return response()->json([
+                'message' => 'User updated successfully',
+                'user' => $user
+            ], 200);
+    
+        } catch (ValidationException $e) {
+            return response()->json([
+                'message' => 'Validation failed',
+                'errors' => $e->errors(),
+            ], 422);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'An error occurred while updating the user',
+                'error' => $e->getMessage()
+            ], 500);
         }
-
-        $user->update($validatedData);
-
-        return response()->json($user);
     }
 
     /**
