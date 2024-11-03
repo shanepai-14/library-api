@@ -214,10 +214,30 @@ class UserController extends Controller
                 'last_name' => 'sometimes|required|string|max:255',
                 'middle_name' => 'nullable|string|max:255',
                 'contact_number' => 'sometimes|required|string|max:255',
-                'password' => 'sometimes|required|string|min:8|confirmed',
+                'old_password' => 'required_with:new_password|string',
+                'new_password' => 'sometimes|required|string|min:8',
                 'profile_picture' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
-             
+                'gender' => 'sometimes|required|string|max:255',
+                'birthday' => 'sometimes|required|date|before:today',
             ]);
+    
+            // Check old password if new password is being set
+            if (isset($validatedData['new_password'])) {
+                if (!Hash::check($validatedData['old_password'], $user->password)) {
+                    return response()->json([
+                        'message' => 'The old password is incorrect.',
+                    ], 422);
+                }
+                // Replace password in validatedData with new_password
+                $validatedData['password'] = Hash::make($validatedData['new_password']);
+                // Remove old_password and new_password from validatedData
+                unset($validatedData['old_password']);
+                unset($validatedData['new_password']);
+            }
+
+            if (isset($validatedData['birthday'])) {
+                $validatedData['birthday'] = Carbon::parse($validatedData['birthday'])->format('Y-m-d');
+            }
     
             // Handle profile picture upload
             if ($request->hasFile('profile_picture')) {
@@ -236,17 +256,11 @@ class UserController extends Controller
                 $validatedData['profile_picture'] = str_replace('public/', '', $path);
             }
     
-            // Handle password update
-            if (isset($validatedData['password'])) {
-                $validatedData['password'] = Hash::make($validatedData['password']);
-            }
-    
             // Update user
             $user->update($validatedData);
-
+    
             $user = $user->fresh();
     
-            // Return response with updated user data
             return response()->json([
                 'message' => 'User updated successfully',
                 'user' => $user
