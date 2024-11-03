@@ -9,6 +9,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
+use Illuminate\Support\Facades\Password;
 use Carbon\Carbon;
 class UserController extends Controller
 {
@@ -279,14 +280,103 @@ class UserController extends Controller
         }
     }
 
+
+    public function getUserPassword($id)
+    {
+        try {
+            $user = User::findOrFail($id);
+            
+    
+            return response()->json([
+                'message' => 'User data retrieved successfully',
+                'user' => [
+                    'id_number' => $user->id_number,
+                    'first_name' => $user->first_name,
+                    'last_name' => $user->last_name,
+                    'email' => $user->email,
+                    'contact_number' => $user->contact_number,
+                    'gender' => $user->gender,
+                    'birthday' => $user->birthday,
+                ]
+            ]);
+    
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'User not found or error occurred',
+                'error' => $e->getMessage()
+            ], 404);
+        }
+    }
+
+    public function updateUserPassword(Request $request, $id)
+{
+    try {
+
+        $validatedData = $request->validate([
+            'new_password' => 'required|string|min:8',
+        ]);
+
+        $user = User::findOrFail($id);
+        
+        // Update the password
+        $user->password = Hash::make($validatedData['new_password']);
+        $user->save();
+
+    
+        return response()->json([
+            'message' => 'Password updated successfully',
+            'user' => [
+                'id' => $user->id,
+                'email' => $user->email
+            ]
+        ]);
+
+    } catch (ValidationException $e) {
+        return response()->json([
+            'message' => 'Validation failed',
+            'errors' => $e->errors()
+        ], 422);
+    } catch (\Exception $e) {
+        return response()->json([
+            'message' => 'Failed to update password',
+            'error' => $e->getMessage()
+        ], 500);
+    }
+}
+
+
     /**
      * Remove the specified user from storage.
      */
-    public function destroy(User $user)
-    {
+  public function destroy($id)
+{
+    try {
+        $user = User::findOrFail($id);
+
+        // Check if user is a student (if you have role-based system)
+        if ($user->role !== 'student') {
+            return response()->json([
+                'message' => 'Only student accounts can be deleted'
+            ], 403);
+        }
+
+        // Perform soft delete
         $user->delete();
-        return response()->json(null, 204);
+
+   
+
+        return response()->json([
+            'message' => 'Student deleted successfully'
+        ]);
+
+    } catch (\Exception $e) {
+
+        return response()->json([
+            'message' => 'Error deleting student',
+            'error' => $e->getMessage()
+        ], 500);
     }
+}
     // public function checkStudent(Request $request)
     // {
     //     $request->validate([

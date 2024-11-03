@@ -47,4 +47,8 @@ Route::group(['middleware' => ['auth:sanctum']] ,function () {
     Route::get('/admin/stats', [StatsController::class, 'getStats']);
     Route::get('/student/stats', [StatsController::class, 'getStudentStats']);
 
+    Route::get('/admin/users/{id}/password', [UserController::class, 'getUserPassword']);
+    Route::post('/admin/users/{id}/update-password', [UserController::class, 'updateUserPassword']);
+    Route::delete('/admin/students/{id}', [UserController::class, 'destroy']);
+
 });

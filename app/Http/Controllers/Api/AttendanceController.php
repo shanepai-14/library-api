@@ -190,7 +190,9 @@ public function getWeeklyAnalytics(Request $request)
 
     public function index(Request $request)
     {
-        $query = Attendance::with('user')->orderBy('created_at', 'desc');
+        $query = Attendance::with(['user' => function ($query) {
+            $query->withTrashed();
+        }])->orderBy('created_at', 'desc');
 
         // Search functionality
         if ($request->has('search')) {
