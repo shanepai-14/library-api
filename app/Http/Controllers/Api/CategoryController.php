@@ -56,7 +56,8 @@ class CategoryController extends Controller
         $validatedData = $request->validate([
             'name' => 'required|unique:categories|max:255',
             'description' => 'nullable',
-            'status' => 'required',
+            'shelve_no' => 'required|string|max:50',
+            'status' => 'required|string|max:50',
         ]);
 
         $category = Category::create($validatedData);
@@ -79,7 +80,8 @@ class CategoryController extends Controller
         $validatedData = $request->validate([
             'name' => 'sometimes|required|unique:categories,name,' . $category->id . '|max:255',
             'description' => 'nullable',
-            'status' => 'required'
+            'status' => 'required',
+            'shelve_no' => 'required|string|max:50',
         ]);
 
         $category->update($validatedData);

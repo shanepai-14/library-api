@@ -10,6 +10,7 @@ use App\Http\Controllers\Api\BookLoanController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\FeaturePostController;
 use App\Http\Controllers\Api\StatsController;
+use App\Http\Controllers\Api\SubjectController;
 
 Route::post('/register', [UserController::class, 'register']);
 Route::post('/login', [UserController::class, 'login'])->name('login');
@@ -36,6 +37,8 @@ Route::group(['middleware' => ['auth:sanctum']] ,function () {
 
     Route::apiResource('book-loans', BookLoanController::class);
     Route::apiResource('categories', CategoryController::class);
+    Route::get('recommended-books/{user_id}', [BookController::class, 'getRecommendedBooks']);
+    
     Route::apiResource('feature-posts', FeaturePostController::class);
     Route::get('/books/category/{categoryId}', [BookController::class, 'getBooksByCategory']);
     Route::get('/books/author/{authorId}', [BookController::class, 'getBooksByAuthor']);
@@ -50,5 +53,10 @@ Route::group(['middleware' => ['auth:sanctum']] ,function () {
     Route::get('/admin/users/{id}/password', [UserController::class, 'getUserPassword']);
     Route::post('/admin/users/{id}/update-password', [UserController::class, 'updateUserPassword']);
     Route::delete('/admin/students/{id}', [UserController::class, 'destroy']);
+
+    Route::apiResource('subjects', SubjectController::class);
+    Route::get('subjects/{subject}/books', [SubjectController::class, 'books']);
+    Route::get('all-subjects', [SubjectController::class, 'getAll']);
+
 
 });

@@ -64,6 +64,7 @@ class User extends Authenticatable
 
 
 
+
     protected static function boot()
     {
         parent::boot();
@@ -95,6 +96,8 @@ class User extends Authenticatable
 
         return $randomString;
     }
+
+    
 
     
 }

@@ -4,9 +4,12 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Models\Subject;
+use App\Models\Book;
 use App\Models\Attendance;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+
 
 use Carbon\Carbon;
 
@@ -40,7 +43,7 @@ class AttendanceController extends Controller
     ->whereYear('date', $year)
     ->join('users', 'attendance.user_id', '=', 'users.id');
 
-// Add year level filter if not 'all'
+
         if ($yearLevel !== 'all') {
             $query->where('users.year_level', $yearLevel);
         }
@@ -321,29 +324,107 @@ public function getWeeklyAnalytics(Request $request)
     //         ], 400);
     //     }
     // }
-        public function checkInOut(Request $request)
+    //     public function checkInOut(Request $request)
+    // {
+    //     $request->validate([
+    //         'user_id' => 'required|exists:users,id',
+    //         'notes' => 'required|string',
+    //     ]);
+
+    //     $user = User::findOrFail($request->user_id);
+
+    //     if (!$user) {
+    //         return response()->json([
+    //             'found' => false,
+    //             'message' => 'Student not found'
+    //         ], 404);
+    //     }
+
+    //     $now = Carbon::now();
+
+    //     $lastAttendance = Attendance::where('user_id', $user->id)
+    //         ->whereDate('date', $now->toDateString())
+    //         ->latest('check_in')
+    //         ->first();
+
+    //     if (!$lastAttendance || $lastAttendance->check_out !== null) {
+    //         // Check-in: Create a new attendance record
+    //         $attendance = Attendance::create([
+    //             'user_id' => $user->id,
+    //             'date' => $now->toDateString(),
+    //             'check_in' => $now,
+    //             'notes' => $request->notes,
+    //         ]);
+
+    //         return response()->json([
+    //             'message' => 'Check-in successful',
+    //             'attendance' => $attendance
+    //         ], 201);
+    //     } else {
+    //         // Check-out: Update the last attendance record
+    //         $lastAttendance->update([
+    //             'check_out' => $now,
+    //         ]);
+
+    //         return response()->json([
+    //             'message' => 'Check-out successful',
+    //             'attendance' => $lastAttendance
+    //         ]);
+    //     }
+    // }
+
+
+    public function checkInOut(Request $request)
     {
         $request->validate([
             'user_id' => 'required|exists:users,id',
             'notes' => 'required|string',
         ]);
-
+    
         $user = User::findOrFail($request->user_id);
-
+    
         if (!$user) {
             return response()->json([
                 'found' => false,
                 'message' => 'Student not found'
             ], 404);
         }
-
+    
         $now = Carbon::now();
-
+    
         $lastAttendance = Attendance::where('user_id', $user->id)
             ->whereDate('date', $now->toDateString())
             ->latest('check_in')
             ->first();
-
+    
+        // Get recommended books only for check-in and if notes contain "Borrow Book"
+        $recommendedBooks = [];
+        if ((!$lastAttendance || $lastAttendance->check_out !== null) && 
+            stripos($request->notes, 'Borrow Book') !== false && 
+            $user->role === 'student') {
+                
+            // Convert year level format
+            $yearLevel = (int) preg_replace('/[^0-9]/', '', $user->year_level);
+                
+            // Get recommended books through the pivot table
+            $recommendedBooks = Book::whereHas('subjects', function($query) use ($user, $yearLevel) {
+                    $query->where('year_level', $yearLevel)
+                          ->where('department', $user->course);
+                })
+                ->with(['author', 'category', 'subjects'])
+                ->select('books.*')
+                ->selectRaw('
+                    (books.total_copies - (
+                        SELECT COUNT(*) 
+                        FROM book_loans 
+                        WHERE book_loans.book_id = books.id 
+                        AND book_loans.actual_return_date IS NULL
+                    )) as available_copies
+                ')
+                ->havingRaw('available_copies > 0')
+                ->get();
+        }
+    
         if (!$lastAttendance || $lastAttendance->check_out !== null) {
             // Check-in: Create a new attendance record
             $attendance = Attendance::create([
@@ -352,23 +433,62 @@ public function getWeeklyAnalytics(Request $request)
                 'check_in' => $now,
                 'notes' => $request->notes,
             ]);
-
+    
+            // Format the response to include more details about the recommended books
+            $formattedBooks = $recommendedBooks->map(function($book) {
+                return [
+                    'id' => $book->id,
+                    'title' => $book->title,
+                    'isbn' => $book->isbn,
+                    'total_copies' => $book->total_copies,
+                    'image' => $book->image,
+                    'available_copies' => $book->available_copies,
+                    'author' => $book->author ? [
+                        'id' => $book->author->id,
+                        'name' => $book->author->name
+                    ] : null,
+                    'category' => $book->category ? [
+                        'id' => $book->category->id,
+                        'name' => $book->category->name,
+                        'shelve_no' => $book->category->shelve_no
+                    ] : null,
+                    'subjects' => $book->subjects->map(function($subject) {
+                        return [
+                            'id' => $subject->id,
+                            'code' => $subject->code,
+                            'name' => $subject->name,
+                            'department' => $subject->department,
+                            'year_level' => $subject->year_level
+                        ];
+                    })
+                ];
+            });
+    
             return response()->json([
                 'message' => 'Check-in successful',
-                'attendance' => $attendance
+                'attendance' => $attendance,
+                'student' => [
+                    'id' => $user->id,
+                    'id_number' => $user->id_number,
+                    'name' => $user->first_name . ' ' . $user->last_name,
+                    'course' => $user->course,
+                    'year_level' => $user->year_level,
+                    'department' => $user->department
+                ],
+                'recommended_books' => $formattedBooks
             ], 201);
         } else {
             // Check-out: Update the last attendance record
             $lastAttendance->update([
                 'check_out' => $now,
             ]);
-
+    
             return response()->json([
                 'message' => 'Check-out successful',
                 'attendance' => $lastAttendance
             ]);
         }
     }
-
+    
     
 }

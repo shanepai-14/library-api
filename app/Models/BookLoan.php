@@ -14,13 +14,13 @@ class BookLoan extends Model
         'book_id',
         'loan_date',
         'due_date',
-        'return_date',
+        'actual_return_date',
     ];
 
     protected $casts = [
         'loan_date' => 'date',
         'due_date' => 'date',
-        'return_date' => 'date',
+        'actual_return_date' => 'date',
     ];
 
     public function user()

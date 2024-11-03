@@ -7,7 +7,9 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use App\Models\Book;
+use App\Models\User;
 use App\Models\BookLoan;
+use Illuminate\Support\Facades\DB;
 
 class BookController extends Controller
 {
@@ -59,21 +61,27 @@ class BookController extends Controller
      * Store a newly created book in storage.
      */
     public function store(Request $request)
-    {
-        $validatedData = $request->validate([
-            'title' => 'required|max:255',
-            'author_id' => 'required|exists:authors,id',
-            'category_id' => 'required|exists:categories,id',
-            'isbn' => 'nullable|unique:books,isbn|max:13',
-            'description' => 'nullable',
-            'publication_year' => 'nullable|integer|min:1000|max:' . (date('Y') + 1),
-            'publisher' => 'nullable|max:255',
-            'language' => 'nullable|max:50',
-            'book_price' => 'nullable|numeric|min:0',
-            'total_copies' => 'required|numeric|min:1',
-            'image' => 'required|image|mimes:jpeg,png,jpg,gif|max:5048'
-        ]);
-        
+{
+    $validatedData = $request->validate([
+        'title' => 'required|max:255',
+        'author_id' => 'required|exists:authors,id',
+        'category_id' => 'required|exists:categories,id',
+        'isbn' => 'nullable|unique:books,isbn|max:13',
+        'description' => 'nullable',
+        'publication_year' => 'nullable|integer|min:1000|max:' . (date('Y') + 1),
+        'publisher' => 'nullable|max:255',
+        'language' => 'nullable|max:50',
+        'book_price' => 'nullable|numeric|min:0',
+        'total_copies' => 'required|numeric|min:1',
+        'image' => 'required|image|mimes:jpeg,png,jpg,gif|max:5048',
+        'subject_ids' => 'nullable|array',
+        'subject_ids.*' => 'exists:subjects,id'
+    ]);
+
+    try {
+        DB::beginTransaction();
+
+        // Handle image upload
         if ($request->hasFile('image')) {
             $image = $request->file('image');
             $filename = time() . '.' . $image->getClientOriginalExtension();
@@ -81,9 +89,42 @@ class BookController extends Controller
             $validatedData['image'] = str_replace('public/', '', $path);
         }
 
+        // Remove subject_ids from validatedData as it's not a column in books table
+        $subjectIds = $request->input('subject_ids', []);
+        unset($validatedData['subject_ids']);
+
+        // Create the book
         $book = Book::create($validatedData);
-        return response()->json($book, Response::HTTP_CREATED);
+
+        // Attach subjects to the book
+        if (!empty($subjectIds)) {
+            $book->subjects()->attach($subjectIds);
+        }
+
+        DB::commit();
+
+        // Load the relationships for the response
+        $book->load(['author', 'category', 'subjects']);
+
+        return response()->json([
+            'message' => 'Book created successfully',
+            'data' => $book
+        ], Response::HTTP_CREATED);
+
+    } catch (\Exception $e) {
+        DB::rollBack();
+        
+        // Delete uploaded image if it exists
+        if (isset($validatedData['image'])) {
+            Storage::delete('public/' . $validatedData['image']);
+        }
+
+        return response()->json([
+            'message' => 'Error creating book',
+            'error' => $e->getMessage()
+        ], Response::HTTP_INTERNAL_SERVER_ERROR);
     }
+}
 
     /**
      * Display the specified book.
@@ -222,4 +263,42 @@ public function getBooksByAuthor(Request $request, $authorId)
         $book->delete();
         return response()->json(null, Response::HTTP_NO_CONTENT);
     }
+
+    public function getRecommendedBooks($userId)
+{
+    $user = User::findOrFail($userId);
+
+    if ($user->role !== 'student') {
+        return response()->json([
+            'message' => 'Recommendations are only available for students',
+            'recommended_books' => []
+        ]);
+    }
+
+    // Convert year level format
+    $yearLevel = (int) preg_replace('/[^0-9]/', '', $user->year_level);
+            
+    // Get recommended books through the pivot table
+    $recommendedBooks = Book::whereHas('subjects', function($query) use ($user, $yearLevel) {
+            $query->where('year_level', $yearLevel)
+                  ->where('department', $user->course);
+        })
+        ->with(['author', 'category', 'subjects'])
+        ->select('books.*')
+        ->selectRaw('
+            (books.total_copies - (
+                SELECT COUNT(*) 
+                FROM book_loans 
+                WHERE book_loans.book_id = books.id 
+                AND book_loans.actual_return_date IS NULL
+            )) as available_copies
+        ')
+        ->havingRaw('available_copies > 0')
+        ->get();
+
+    return response()->json([
+        'message' => 'Recommended books retrieved successfully',
+        'recommended_books' => $recommendedBooks
+    ]);
+}
 }
