@@ -14,8 +14,8 @@ use Illuminate\Support\Facades\DB;
 class BookController extends Controller
 {
     public function index(Request $request)
-    {
-        $query = Book::with(['author', 'category'])
+{
+    $query = Book::with(['author', 'category', 'subjects'])
         ->leftJoinSub(
             BookLoan::selectRaw('book_id, COUNT(*) as active_loans')
                 ->whereNull('actual_return_date')
@@ -27,36 +27,88 @@ class BookController extends Controller
         )
         ->selectRaw('books.*, COALESCE(books.total_copies - IFNULL(active_loans.active_loans, 0), books.total_copies) as available_copies');
 
-        // Search functionality
-        if ($request->has('search')) {
-            $searchTerm = $request->search == "all" ? "" : $request->search;
-            $query->where(function ($q) use ($searchTerm) {
-                $q->where('title', 'LIKE', "%{$searchTerm}%")
-                  ->orWhere('isbn', 'LIKE', "%{$searchTerm}%")
-                  ->orWhereHas('author', function ($q) use ($searchTerm) {
-                      $q->where('name', 'LIKE', "%{$searchTerm}%");
-                  })
-                  ->orWhereHas('category', function ($q) use ($searchTerm) {
-                      $q->where('name', 'LIKE', "%{$searchTerm}%");
-                  });
-            });
-        }
-
-        // Pagination
-        $perPage = $request->input('row', 15); // Default to 15 if not specified
-        $page = $request->input('page', 1);
-
-        $books = $query->paginate($perPage, ['*'], 'page', $page);
-
-        return response()->json([
-            'data' => $books->items(),
-            'current_page' => $books->currentPage(),
-            'per_page' => $books->perPage(),
-            'total' => $books->total(),
-            'last_page' => $books->lastPage(),
-            'image_url' => asset('storage/'),
-        ]);
+    // Search functionality
+    if ($request->has('search')) {
+        $searchTerm = $request->search == "all" ? "" : $request->search;
+        $query->where(function ($q) use ($searchTerm) {
+            $q->where('title', 'LIKE', "%{$searchTerm}%")
+              ->orWhere('isbn', 'LIKE', "%{$searchTerm}%")
+              ->orWhereHas('author', function ($q) use ($searchTerm) {
+                  $q->where('name', 'LIKE', "%{$searchTerm}%");
+              })
+              ->orWhereHas('category', function ($q) use ($searchTerm) {
+                  $q->where('name', 'LIKE', "%{$searchTerm}%");
+              })
+              ->orWhereHas('subjects', function ($q) use ($searchTerm) {
+                  $q->where('name', 'LIKE', "%{$searchTerm}%")
+                    ->orWhere('code', 'LIKE', "%{$searchTerm}%");
+              });
+        });
     }
+
+    // Filter by subject if provided
+    if ($request->has('subject')) {
+        $query->whereHas('subjects', function ($q) use ($request) {
+            $q->where('subjects.id', $request->subject);
+        });
+    }
+
+    // Filter by year level if provided
+    if ($request->has('year_level')) {
+        $query->whereHas('subjects', function ($q) use ($request) {
+            $q->where('year_level', $request->year_level);
+        });
+    }
+
+    // Filter by department if provided
+    if ($request->has('department')) {
+        $query->whereHas('subjects', function ($q) use ($request) {
+            $q->where('department', $request->department);
+        });
+    }
+
+    // Filter by semester if provided
+    if ($request->has('semester')) {
+        $query->whereHas('subjects', function ($q) use ($request) {
+            $q->where('semester', $request->semester);
+        });
+    }
+
+    // Pagination
+    $perPage = $request->input('row', 15);
+    $page = $request->input('page', 1);
+
+    $books = $query->paginate($perPage, ['*'], 'page', $page);
+
+    // Transform the data to include formatted subject information
+    $transformedBooks = $books->through(function ($book) {
+        $book->subjects_info = $book->subjects->map(function ($subject) {
+            return [
+                'id' => $subject->id,
+                'code' => $subject->code,
+                'name' => $subject->name,
+                'year_level' => $subject->year_level,
+                'department' => $subject->department,
+                'semester' => $subject->semester,
+                'display_text' => "{$subject->code} - {$subject->name} ({$subject->year_level}, {$subject->semester} Semester)"
+            ];
+        });
+        
+        // Remove the original subjects relationship to clean up the response
+        unset($book->subjects);
+        
+        return $book;
+    });
+
+    return response()->json([
+        'data' => $transformedBooks->items(),
+        'current_page' => $books->currentPage(),
+        'per_page' => $books->perPage(),
+        'total' => $books->total(),
+        'last_page' => $books->lastPage(),
+        'image_url' => asset('storage/'),
+    ]);
+}
     /**
      * Store a newly created book in storage.
      */
@@ -150,7 +202,9 @@ class BookController extends Controller
             'language' => 'nullable|max:50',
             'book_price' => 'nullable|numeric|min:0',
             'total_copies' => 'required|numeric|min:1',
-            'image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:5048'
+            'image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:5048',
+            'subject_ids' => 'nullable|array',
+            'subject_ids.*' => 'exists:subjects,id'
         ]);
     
         if ($request->hasFile('image')) {
@@ -165,11 +219,48 @@ class BookController extends Controller
             $validatedData['image'] = str_replace('public/', '', $path);
         }
     
-        $book->update($validatedData);
+        // Remove subject_ids from validated data as it's not a column in books table
+        $subject_ids = $request->input('subject_ids', []);
+        unset($validatedData['subject_ids']);
     
-        return response()->json($book, Response::HTTP_OK);
+        DB::beginTransaction();
+        try {
+            // Update book details
+            $book->update($validatedData);
+    
+            // Sync subjects
+            $book->subjects()->sync($subject_ids);
+    
+            DB::commit();
+    
+            // Load the updated book with its relationships
+            $book->load(['author', 'category', 'subjects']);
+    
+            // Transform the subjects data to match your index format
+            $book->subjects_info = $book->subjects->map(function ($subject) {
+                return [
+                    'id' => $subject->id,
+                    'code' => $subject->code,
+                    'name' => $subject->name,
+                    'year_level' => $subject->year_level,
+                    'department' => $subject->department,
+                    'semester' => $subject->semester,
+                    'display_text' => "{$subject->code} - {$subject->name} ({$subject->year_level}, {$subject->semester} Semester)"
+                ];
+            });
+    
+            unset($book->subjects);
+    
+            return response()->json($book, Response::HTTP_OK);
+    
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json([
+                'message' => 'Failed to update book.',
+                'error' => $e->getMessage()
+            ], Response::HTTP_INTERNAL_SERVER_ERROR);
+        }
     }
-
     public function getBooksByCategory(Request $request, $categoryId)
 {
     $page = $request->input('page', 1);
