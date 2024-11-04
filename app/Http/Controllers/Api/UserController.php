@@ -284,20 +284,12 @@ class UserController extends Controller
     public function getUserPassword($id)
     {
         try {
-            $user = User::findOrFail($id);
+            $user = User::withTrashed()->findOrFail($id);
             
     
             return response()->json([
                 'message' => 'User data retrieved successfully',
-                'user' => [
-                    'id_number' => $user->id_number,
-                    'first_name' => $user->first_name,
-                    'last_name' => $user->last_name,
-                    'email' => $user->email,
-                    'contact_number' => $user->contact_number,
-                    'gender' => $user->gender,
-                    'birthday' => $user->birthday,
-                ]
+                'user' =>  $user
             ]);
     
         } catch (\Exception $e) {
